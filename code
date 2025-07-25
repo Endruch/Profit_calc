@@ -1,0 +1,647 @@
+package com.example.profitcalc
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.profitcalc.ui.theme.ProfitCalcTheme
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            ProfitCalcTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = Color(0xFF0F172A) // Темный фон
+                ) {
+                    TradingProfitCalculator()
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TradingProfitCalculator() {
+    var entryPrice by remember { mutableStateOf("") }
+    var exitPrice by remember { mutableStateOf("") }
+    var tradeVolume by remember { mutableStateOf("") }
+    var positionType by remember { mutableStateOf("long") }
+    var commissionRate by remember { mutableStateOf("0.1") }
+
+    val scrollState = rememberScrollState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+            .padding(16.dp)
+    ) {
+        // Заголовок
+        Text(
+            text = "📈 Калькулятор профита",
+            color = Color.White,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 24.dp),
+            textAlign = TextAlign.Center
+        )
+
+        // Выбор типа позиции
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF1E293B)
+            ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "Тип позиции",
+                    color = Color(0xFFD1D5DB),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // LONG кнопка
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .selectable(
+                                selected = positionType == "long",
+                                onClick = { positionType = "long" }
+                            ),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (positionType == "long")
+                                Color(0xFF16A34A) else Color(0xFF374151)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "LONG ↗",
+                                color = Color.White,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // SHORT кнопка
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .selectable(
+                                selected = positionType == "short",
+                                onClick = { positionType = "short" }
+                            ),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (positionType == "short")
+                                Color(0xFFDC2626) else Color(0xFF374151)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "SHORT ↘",
+                                color = Color.White,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Цены
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+        ) {
+            PriceInputCard(
+                label = "Цена входа ($)",
+                value = entryPrice,
+                onValueChange = { entryPrice = it },
+                modifier = Modifier.weight(1f)
+            )
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            PriceInputCard(
+                label = "Цена выхода ($)",
+                value = exitPrice,
+                onValueChange = { exitPrice = it },
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        // Объем сделки
+        VolumeInputSection(
+            volume = tradeVolume,
+            onVolumeChange = { tradeVolume = it }
+        )
+
+        // Комиссия биржи
+        CommissionInputCard(
+            value = commissionRate,
+            onValueChange = { commissionRate = it }
+        )
+
+        // Результаты
+        val result = calculateProfit(entryPrice, exitPrice, tradeVolume, positionType, commissionRate)
+        result?.let {
+            ResultsCard(result = it, positionType = positionType)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PriceInputCard(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF1E293B)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = label,
+                color = Color(0xFFD1D5DB),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            OutlinedTextField(
+                value = value,
+                onValueChange = onValueChange,
+                placeholder = { Text("0.00", color = Color(0xFF6B7280)) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = Color(0xFF3B82F6),
+                    unfocusedBorderColor = Color(0xFF4B5563)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CommissionInputCard(
+    value: String,
+    onValueChange: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF1E293B)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = "Комиссия биржи (%)",
+                color = Color(0xFFD1D5DB),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            OutlinedTextField(
+                value = value,
+                onValueChange = onValueChange,
+                placeholder = { Text("0.1", color = Color(0xFF6B7280)) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = Color(0xFF3B82F6),
+                    unfocusedBorderColor = Color(0xFF4B5563)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+fun VolumeInputSection(
+    volume: String,
+    onVolumeChange: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF1E293B)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = "Объем сделки",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            VolumeInput("Сумма ($)", volume, onVolumeChange)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun VolumeInput(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit
+) {
+    Column {
+        Text(
+            text = label,
+            color = Color(0xFFD1D5DB),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = { Text("0", color = Color(0xFF6B7280)) },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
+                focusedBorderColor = Color(0xFF3B82F6),
+                unfocusedBorderColor = Color(0xFF4B5563)
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+fun ResultsCard(result: ProfitResult, positionType: String) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF1E293B)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = "📊 Результаты расчета",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            // Основные показатели
+            Column {
+                ResultRow("Сумма инвестиции:", "$${String.format("%.2f", result.totalInvestment)}")
+                ResultRow("Количество единиц:", String.format("%.6f", result.totalUnits))
+
+                HorizontalDivider(
+                    color = Color(0xFF374151),
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+
+                ResultRow("Комиссия за вход:", "-$${String.format("%.2f", result.entryFee)}", isNegative = true)
+                ResultRow("Комиссия за выход:", "-$${String.format("%.2f", result.exitFee)}", isNegative = true)
+                ResultRow("Общие комиссии:", "-$${String.format("%.2f", result.totalFees)}", isNegative = true)
+
+                HorizontalDivider(
+                    color = Color(0xFF374151),
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+
+                ResultRow("Валовая прибыль:", "$${String.format("%.2f", result.grossProfit)}",
+                    isNegative = result.grossProfit < 0)
+
+                HorizontalDivider(
+                    color = Color(0xFF374151),
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+
+                // Чистая прибыль
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Чистая прибыль:",
+                        color = Color(0xFFD1D5DB),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "${if (result.netProfit >= 0) "↗" else "↘"} $${String.format("%.2f", result.netProfit)}",
+                        color = if (result.netProfit >= 0) Color(0xFF10B981) else Color(0xFFEF4444),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Прибыль %:",
+                        color = Color(0xFFD1D5DB),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "${if (result.profitPercentage >= 0) "↗" else "↘"} ${String.format("%.2f", result.profitPercentage)}%",
+                        color = if (result.profitPercentage >= 0) Color(0xFF10B981) else Color(0xFFEF4444),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                }
+            }
+
+            // Статус сделки
+            Spacer(modifier = Modifier.height(12.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = when {
+                        result.netProfit > 0 -> Color(0xFF065F46)
+                        result.netProfit < 0 -> Color(0xFF7F1D1D)
+                        else -> Color(0xFF374151)
+                    }
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val statusText = when {
+                        result.netProfit > 0 -> "✅ Прибыльная сделка"
+                        result.netProfit < 0 -> "❌ Убыточная сделка"
+                        else -> "⚖️ Безубыточная сделка"
+                    }
+                    Text(
+                        text = statusText,
+                        color = Color.White,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ResultRow(
+    label: String,
+    value: String,
+    isNegative: Boolean = false
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            color = Color(0xFFD1D5DB),
+            fontSize = 14.sp
+        )
+        Text(
+            text = value,
+            color = if (isNegative) Color(0xFFEF4444) else Color.White,
+            fontWeight = FontWeight.Medium,
+            fontSize = 14.sp
+        )
+    }
+}
+
+data class ProfitResult(
+    val totalInvestment: Double,
+    val totalUnits: Double,
+    val grossProfit: Double,
+    val netProfit: Double,
+    val profitPercentage: Double,
+    val entryFee: Double,
+    val exitFee: Double,
+    val totalFees: Double
+)
+
+fun calculateProfit(
+    entryPrice: String,
+    exitPrice: String,
+    tradeVolume: String,
+    positionType: String,
+    commissionRate: String
+): ProfitResult? {
+    val entry = entryPrice.toDoubleOrNull() ?: return null
+    val exit = exitPrice.toDoubleOrNull() ?: return null
+    val volume = tradeVolume.toDoubleOrNull() ?: return null
+    val commission = commissionRate.toDoubleOrNull() ?: return null
+
+    if (entry <= 0.0 || exit <= 0.0 || volume <= 0.0) return null
+
+    // Комиссия в десятичном формате (например, 0.1% = 0.001)
+    val feeRate = commission / 100.0
+
+    return if (positionType == "long") {
+        calculateLongPosition(entry, exit, volume, feeRate)
+    } else {
+        calculateShortPosition(entry, exit, volume, feeRate)
+    }
+}
+
+private fun calculateLongPosition(
+    entryPrice: Double,
+    exitPrice: Double,
+    volume: Double,
+    feeRate: Double
+): ProfitResult {
+    // LONG позиция: покупаем актив по цене входа, продаем по цене выхода
+
+    // Комиссия за покупку
+    val entryFee = volume * feeRate
+
+    // Сумма после комиссии, доступная для покупки актива
+    val effectiveVolume = volume - entryFee
+
+    // Количество единиц актива, которое мы можем купить
+    val units = effectiveVolume / entryPrice
+
+    // Валовая сумма от продажи
+    val grossSaleAmount = units * exitPrice
+
+    // Комиссия за продажу
+    val exitFee = grossSaleAmount * feeRate
+
+    // Чистая сумма после продажи
+    val netSaleAmount = grossSaleAmount - exitFee
+
+    // Валовая прибыль (без учета комиссий)
+    val grossProfit = grossSaleAmount - effectiveVolume
+
+    // Чистая прибыль (с учетом всех комиссий)
+    val netProfit = netSaleAmount - volume
+
+    // Процент прибыли
+    val profitPercentage = (netProfit / volume) * 100
+
+    val totalFees = entryFee + exitFee
+
+    return ProfitResult(
+        totalInvestment = volume,
+        totalUnits = units,
+        grossProfit = grossProfit,
+        netProfit = netProfit,
+        profitPercentage = profitPercentage,
+        entryFee = entryFee,
+        exitFee = exitFee,
+        totalFees = totalFees
+    )
+}
+
+private fun calculateShortPosition(
+    entryPrice: Double,
+    exitPrice: Double,
+    volume: Double,
+    feeRate: Double
+): ProfitResult {
+    // SHORT позиция: продаем актив по цене входа, покупаем обратно по цене выхода
+
+    // Комиссия за открытие short позиции (продажу)
+    val entryFee = volume * feeRate
+
+    // Сумма после комиссии
+    val effectiveVolume = volume - entryFee
+
+    // Количество единиц актива в short позиции
+    val units = effectiveVolume / entryPrice
+
+    // Стоимость покупки актива для закрытия позиции
+    val buybackCost = units * exitPrice
+
+    // Комиссия за покупку (закрытие позиции)
+    val exitFee = buybackCost * feeRate
+
+    // Общая стоимость закрытия позиции
+    val totalBuybackCost = buybackCost + exitFee
+
+    // Валовая прибыль (разница в цене без учета комиссий)
+    val grossProfit = effectiveVolume - buybackCost
+
+    // Чистая прибыль = изначальная сумма + (доход от short - стоимость закрытия) - изначальная сумма
+    // Упрощается до: доход от short - стоимость закрытия - комиссии
+    val netProfit = effectiveVolume - totalBuybackCost
+
+    // Процент прибыли
+    val profitPercentage = (netProfit / volume) * 100
+
+    val totalFees = entryFee + exitFee
+
+    return ProfitResult(
+        totalInvestment = volume,
+        totalUnits = units,
+        grossProfit = grossProfit,
+        netProfit = netProfit,
+        profitPercentage = profitPercentage,
+        entryFee = entryFee,
+        exitFee = exitFee,
+        totalFees = totalFees
+    )
+}
+
+@Preview(showBackground = true)
+@Composable
+fun TradingProfitCalculatorPreview() {
+    ProfitCalcTheme {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = Color(0xFF0F172A)
+        ) {
+            TradingProfitCalculator()
+        }
+    }
+}
